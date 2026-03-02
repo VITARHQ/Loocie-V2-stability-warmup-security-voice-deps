@@ -1,15 +1,11 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
-import os
+
+from app.api.router import api_router  # central router
 
 load_dotenv()
 
 app = FastAPI(title="LoocieAI V2 Master")
 
-@app.get("/")
-def root():
-    return {"status": "ok", "app": "LoocieAI_V2_Master"}
-
-@app.get("/health")
-def health():
-    return {"healthy": True}
+# Attach the central API router (routes live in app/api/routes/*)
+app.include_router(api_router)
