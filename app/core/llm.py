@@ -1,5 +1,6 @@
 import httpx
 from app.logging import get_logger
+from app.core.knowledge import load_knowledge_base
 
 logger = get_logger(__name__)
 
@@ -31,16 +32,25 @@ YOUR RULES:
 - Keep responses concise and actionable
 - Always prioritize the needs of SHC and its customers
 
+{knowledge}
+
 You are ready to serve SHC at the highest level."""
 
 
 async def query_llm(prompt: str, model: str = DEFAULT_MODEL) -> str:
     logger.info("[LLM] Sending query to %s", model)
+
+    knowledge = load_knowledge_base()
+    if knowledge:
+        system = SYSTEM_PROMPT.replace("{knowledge}", "BUSINESS KNOWLEDGE BASE:\n" + knowledge)
+    else:
+        system = SYSTEM_PROMPT.replace("{knowledge}", "")
+
     payload = {
         "model": model,
         "stream": False,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system},
             {"role": "user", "content": prompt},
         ],
     }
