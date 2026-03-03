@@ -182,4 +182,5 @@ cython_debug/
 .env
 .venv/
 __pycache__/
-*.pyc
+*.pyc.DS_Store
+app/.DS_Store
