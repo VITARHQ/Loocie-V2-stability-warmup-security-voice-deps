@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loocie - SHC Executive Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--black:#080808;--gold:#C9A84C;--gold-dim:#7a6330;--white:#F0EDE6;--grey:#1a1a1a;--grey-mid:#2a2a2a;--grey-light:#444;--font-display:'Cormorant Garamond',serif;--font-mono:'DM Mono',monospace}
+html,body{height:100%;background:var(--black);color:var(--white);font-family:var(--font-mono);overflow:hidden}
+body{display:grid;grid-template-rows:auto 1fr auto;height:100vh}
+header{display:flex;align-items:center;justify-content:space-between;padding:20px 36px;border-bottom:1px solid #1f1f1f;background:rgba(8,8,8,0.95)}
+.brand{display:flex;align-items:baseline;gap:12px}
+.brand-name{font-family:var(--font-display);font-size:28px;font-weight:300;letter-spacing:0.12em;color:var(--gold)}
+.brand-sub{font-size:10px;letter-spacing:0.25em;text-transform:uppercase;color:var(--grey-light)}
+.status{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--grey-light)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:#3ecf4a;box-shadow:0 0 8px #3ecf4a;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+#messages{overflow-y:auto;padding:36px;display:flex;flex-direction:column;gap:28px;scrollbar-width:thin;scrollbar-color:var(--grey-mid) transparent}
+.message{display:flex;flex-direction:column;gap:6px;max-width:780px;animation:fadeUp 0.3s ease forwards;opacity:0;transform:translateY(10px)}
+@keyframes fadeUp{to{opacity:1;transform:translateY(0)}}
+.message.user{align-self:flex-end;align-items:flex-end}
+.message.assistant{align-self:flex-start;align-items:flex-start}
+.message-label{font-size:9px;letter-spacing:0.3em;text-transform:uppercase;color:var(--grey-light)}
+.message.user .message-label{color:var(--gold-dim)}
+.message-bubble{padding:14px 20px;border-radius:2px;font-size:13px;line-height:1.75;font-weight:300;white-space:pre-wrap}
+.message.user .message-bubble{background:var(--grey);border:1px solid #2a2a2a}
+.message.assistant .message-bubble{background:transparent;border:1px solid #1f1f1f;border-left:2px solid var(--gold)}
+.thinking .message-bubble{display:flex;gap:6px;align-items:center}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--gold);animation:bounce 1.2s infinite}
+.dot:nth-child(2){animation-delay:0.2s}
+.dot:nth-child(3){animation-delay:0.4s}
+@keyframes bounce{0%,80%,100%{transform:translateY(0);opacity:0.4}40%{transform:translateY(-5px);opacity:1}}
+.welcome{align-self:center;text-align:center;padding:60px 20px;animation:fadeUp 0.6s ease forwards;opacity:0}
+.welcome-name{font-family:var(--font-display);font-size:52px;font-weight:300;color:var(--gold);letter-spacing:0.1em;margin-bottom:12px}
+.welcome-tagline{font-size:11px;letter-spacing:0.3em;text-transform:uppercase;color:var(--grey-light);margin-bottom:40px}
+.welcome-divider{width:40px;height:1px;background:var(--gold-dim);margin:0 auto 40px}
+.welcome-hint{font-size:12px;color:#333;letter-spacing:0.1em}
+footer{padding:20px 36px 28px;border-top:1px solid #1a1a1a;background:rgba(8,8,8,0.98)}
+.input-row{display:flex;gap:12px;align-items:flex-end;max-width:900px;margin:0 auto}
+#input{flex:1;background:var(--grey);border:1px solid #222;border-radius:2px;padding:14px 18px;font-family:var(--font-mono);font-size:13px;font-weight:300;color:var(--white);outline:none;resize:none;min-height:48px;max-height:160px;line-height:1.6;transition:border-color 0.2s}
+#input::placeholder{color:#333}
+#input:focus{border-color:var(--gold-dim)}
+#send{background:var(--gold);color:var(--black);border:none;border-radius:2px;padding:14px 24px;font-family:var(--font-mono);font-size:11px;letter-spacing:0.2em;text-transform:uppercase;cursor:pointer;height:48px;transition:background 0.2s}
+#send:hover{background:#d4af5a}
+#send:disabled{background:var(--gold-dim);cursor:not-allowed}
+.input-hint{text-align:center;font-size:9px;letter-spacing:0.2em;color:#222;margin-top:10px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<header>
+<div class="brand"><span class="brand-name">Loocie</span><span class="brand-sub">SHC Executive Assistant</span></div>
+<div class="status"><div class="status-dot"></div><span>Online</span></div>
+</header>
+<div id="messages">
+<div class="welcome" id="welcome">
+<div class="welcome-name">Loocie</div>
+<div class="welcome-tagline">Seven Holy Creations - Executive AI</div>
+<div class="welcome-divider"></div>
+<div class="welcome-hint">How may I assist you today?</div>
+</div>
+</div>
+<footer>
+<div class="input-row">
+<textarea id="input" placeholder="Message Loocie..." rows="1"></textarea>
+<button id="send">Send</button>
+</div>
+<div class="input-hint">Enter to send &nbsp;·&nbsp; Shift+Enter for new line</div>
+</footer>
+<script>
+const messages=document.getElementById('messages');
+const input=document.getElementById('input');
+const sendBtn=document.getElementById('send');
+const welcome=document.getElementById('welcome');
+let isThinking=false;
+function addMessage(role,text){
+if(welcome)welcome.style.display='none';
+const wrap=document.createElement('div');
+wrap.className='message '+role;
+const label=document.createElement('div');
+label.className='message-label';
+label.textContent=role==='user'?'Rex':'Loocie';
+const bubble=document.createElement('div');
+bubble.className='message-bubble';
+bubble.textContent=text;
+wrap.appendChild(label);
+wrap.appendChild(bubble);
+messages.appendChild(wrap);
+messages.scrollTop=messages.scrollHeight;
+}
+function showThinking(){
+if(welcome)welcome.style.display='none';
+const wrap=document.createElement('div');
+wrap.className='message assistant thinking';
+wrap.id='thinking';
+const label=document.createElement('div');
+label.className='message-label';
+label.textContent='Loocie';
+const bubble=document.createElement('div');
+bubble.className='message-bubble';
+bubble.innerHTML='<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+wrap.appendChild(label);
+wrap.appendChild(bubble);
+messages.appendChild(wrap);
+messages.scrollTop=messages.scrollHeight;
+}
+function removeThinking(){const t=document.getElementById('thinking');if(t)t.remove();}
+async function sendMessage(){
+const text=input.value.trim();
+if(!text||isThinking)return;
+isThinking=true;sendBtn.disabled=true;input.value='';input.style.height='auto';
+addMessage('user',text);showThinking();
+try{
+const res=await fetch('http://127.0.0.1:8000/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});
+const data=await res.json();
+removeThinking();addMessage('assistant',data.reply);
+}catch(err){
+removeThinking();addMessage('assistant','Unable to connect to Loocie engine. Please ensure the server is running.');
+}
+isThinking=false;sendBtn.disabled=false;input.focus();
+}
+sendBtn.addEventListener('click',sendMessage);
+input.addEventListener('keydown',(e)=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
+input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,160)+'px';});
+input.focus();
+</script>
+</body>
+</html>
