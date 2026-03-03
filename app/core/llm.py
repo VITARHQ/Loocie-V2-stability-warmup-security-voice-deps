@@ -1,6 +1,7 @@
 import httpx
 from app.logging import get_logger
 from app.core.knowledge import load_knowledge_base
+from app.core.memory import load_memory, save_memory, add_to_memory
 
 logger = get_logger(__name__)
 
@@ -46,19 +47,26 @@ async def query_llm(prompt: str, model: str = DEFAULT_MODEL) -> str:
     else:
         system = SYSTEM_PROMPT.replace("{knowledge}", "")
 
+    history = load_memory()
+    history = add_to_memory(history, "user", prompt)
+
+    messages = [{"role": "system", "content": system}]
+    for msg in history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+
     payload = {
         "model": model,
         "stream": False,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompt},
-        ],
+        "messages": messages,
     }
+
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(OLLAMA_URL, json=payload)
             response.raise_for_status()
             result = response.json()["message"]["content"].strip()
+            history = add_to_memory(history, "assistant", result)
+            save_memory(history)
             logger.info("[LLM] Response received - length=%d chars", len(result))
             return result
     except httpx.ConnectError:
