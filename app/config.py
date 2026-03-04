@@ -1,5 +1,4 @@
 from functools import lru_cache
-from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
 
@@ -12,10 +11,15 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Core runtime
     loocie_env: str = Field(default="dev")
     loocie_vault_path: str = Field(default="")
-    loocie_api_title: str = Field(default="LoocieAI V2 Master")
-    loocie_api_version: str = Field(default="2.0.0")
+
+    # V3 identity (NEW START)
+    loocie_api_title: str = Field(default="LoocieAI V3 Master")
+    loocie_api_version: str = Field(default="3.0.0")
+
+    # Security / debug
     loocie_debug: bool = Field(default=False)
     loocie_secret_key: str = Field(default="CHANGE-ME-IN-PRODUCTION")
 
