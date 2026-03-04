@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.config import get_settings
 from app.core.vault import verify_vault
-from app.logging import get_logger
+from app.app.logger_config import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)

@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from app.core.llm import query_llm
-from app.logging import get_logger
+from app.app.logger_config import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)

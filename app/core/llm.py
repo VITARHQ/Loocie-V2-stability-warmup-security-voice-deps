@@ -1,5 +1,5 @@
 import httpx
-from app.logging import get_logger
+from app.app.logger_config import get_logger
 from app.core.knowledge import load_knowledge_base
 from app.core.memory import load_memory, save_memory, add_to_memory
 

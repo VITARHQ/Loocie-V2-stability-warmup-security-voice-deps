@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from app.config import get_settings
-from app.logging import get_logger
+from app.app.logger_config import get_logger
 
 logger = get_logger(__name__)
 
