@@ -8,6 +8,9 @@ logger = get_logger(__name__)
 OLLAMA_URL = "http://localhost:11434/api/chat"
 DEFAULT_MODEL = "mistral"
 
+MAX_KNOWLEDGE_CHARS = 8000
+MAX_HISTORY_MESSAGES = 12
+
 SYSTEM_PROMPT = """You are Loocie, the AI Executive Assistant for Seven Holy Creations, LLC (SHC).
 
 You were built by iVenomLegacy Studios, LLC and are powered by the Loocie AI Engine V2.
@@ -40,36 +43,42 @@ YOUR RULES:
 You are ready to serve SHC at the highest level."""
 
 
-async def query_llm(prompt: str, model: str = DEFAULT_MODEL) -> str:
-    """
-    Queries the local Ollama server. Fix-1 goal: never let /chat hang indefinitely.
+def _cap_knowledge(text: str) -> str:
+    if not text:
+        return ""
+    if len(text) <= MAX_KNOWLEDGE_CHARS:
+        return text
+    return text[:MAX_KNOWLEDGE_CHARS] + "\n\n[Knowledge truncated for stability]"
 
-    - Use a short connect timeout so we fail fast if Ollama is down.
-    - Use a reasonable read timeout so we don't stall forever on slow model responses.
-    - Return clear error strings that show up in /chat responses and logs.
-    """
+
+def _cap_history(history: list) -> list:
+    if not history:
+        return []
+    return history[-MAX_HISTORY_MESSAGES:]
+
+
+async def query_llm(prompt: str, model: str = DEFAULT_MODEL) -> str:
     logger.info("[LLM] Sending query to %s", model)
 
-    knowledge = load_knowledge_base()
+    knowledge = _cap_knowledge(load_knowledge_base())
     if knowledge:
         system = SYSTEM_PROMPT.replace("{knowledge}", "BUSINESS KNOWLEDGE BASE:\n" + knowledge)
+        logger.info("[LLM] Injecting knowledge - %d chars", len(knowledge))
     else:
         system = SYSTEM_PROMPT.replace("{knowledge}", "")
+        logger.info("[LLM] No knowledge injected")
 
-    history = load_memory()
+    history = _cap_history(load_memory())
+    logger.info("[LLM] Using memory window - %d messages", len(history))
+
     history = add_to_memory(history, "user", prompt)
 
     messages = [{"role": "system", "content": system}]
     for msg in history:
         messages.append({"role": msg["role"], "content": msg["content"]})
 
-    payload = {
-        "model": model,
-        "stream": False,
-        "messages": messages,
-    }
+    payload = {"model": model, "stream": False, "messages": messages}
 
-    # Fix 1: timeouts to prevent hanging
     timeout = httpx.Timeout(connect=2.0, read=15.0, write=10.0, pool=10.0)
 
     try:
@@ -99,7 +108,6 @@ async def query_llm(prompt: str, model: str = DEFAULT_MODEL) -> str:
         return "Error: Model request timed out. Please try again, or check Ollama/model status."
 
     except httpx.HTTPStatusError as e:
-        # Non-2xx from Ollama (useful when model name is wrong, etc.)
         logger.error("[LLM] Ollama returned HTTP %s: %s", e.response.status_code, e.response.text)
         return f"Error: Ollama returned HTTP {e.response.status_code}. Check model name and Ollama logs."
 
