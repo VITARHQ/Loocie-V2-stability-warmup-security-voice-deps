@@ -17,8 +17,13 @@ class ChatResponse(BaseModel):
     model: str
 
 
-@router.post("/chat")
+a@router.post("/chat")
 async def chat(request: ChatRequest) -> ChatResponse:
     logger.info("[CHAT] Received message - length=%d chars", len(request.message))
-    reply = await query_llm(prompt=request.message, model=request.model)
-    return ChatResponse(reply=reply, model=request.model)
+    try:
+        reply = await query_llm(prompt=request.message, model=request.model)
+        return ChatResponse(reply=reply, model=request.model)
+    except Exception as e:
+        logger.exception("[CHAT] query_llm failed")
+        # Return the actual error string so you can debug quickly
+        return ChatResponse(reply=f"Error: {e}", model=request.model)
