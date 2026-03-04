@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
+import os
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 
@@ -10,23 +12,19 @@ from app.config import get_settings
 from app.logging import setup_logging, get_logger
 from app.api.router import api_router
 from app.core.vault import verify_vault
-from app.core.llm import DEFAULT_MODEL  # warm up whatever your current default model is
+from app.core.llm import DEFAULT_MODEL
 
 settings = get_settings()
 setup_logging(level="DEBUG" if settings.is_dev else "INFO")
 logger = get_logger(__name__)
 
 
-async def warmup_ollama(model: str = DEFAULT_MODEL) -> None:
-    """
-    Auto-warmup: Send a tiny request to Ollama on startup so the first real user request
-    isn't the cold-start hit.
+def _get_api_key() -> str | None:
+    key = os.getenv("LOOCIE_API_KEY")
+    return key.strip() if key else None
 
-    Stability guarantee:
-    - Short connect timeout so it fails fast if Ollama is down.
-    - Read timeout long enough to actually warm the model (helps avoid first-request timeouts).
-    - Always wrapped in try/except so it never prevents API startup.
-    """
+
+async def warmup_ollama(model: str = DEFAULT_MODEL) -> None:
     ollama_url = "http://localhost:11434/api/chat"
     payload = {
         "model": model,
@@ -34,7 +32,6 @@ async def warmup_ollama(model: str = DEFAULT_MODEL) -> None:
         "messages": [{"role": "user", "content": "warm up"}],
     }
 
-    # More forgiving warmup (still safe): connect fast, allow model to spin up a bit
     timeout = httpx.Timeout(connect=1.5, read=15.0, write=10.0, pool=10.0)
 
     try:
@@ -60,8 +57,13 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("[VAULT] Business Vault verified at %s", status.vault_path)
 
-    # Auto-warmup (does not block startup permanently)
     await warmup_ollama(model=DEFAULT_MODEL)
+
+    api_key = _get_api_key()
+    if api_key:
+        logger.info("[SECURITY] API key auth enabled (X-API-Key required; /health excluded)")
+    else:
+        logger.warning("[SECURITY] LOOCIE_API_KEY is not set. API key auth is DISABLED.")
 
     logger.info("[ENGINE] Startup complete - ready to serve requests")
     yield
@@ -74,5 +76,27 @@ app = FastAPI(
     debug=settings.loocie_debug,
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def api_key_middleware(request: Request, call_next):
+    # Allow health checks without auth
+    if request.url.path == "/health":
+        return await call_next(request)
+
+    expected = _get_api_key()
+    if not expected:
+        # dev-friendly: if no key set, do not enforce
+        return await call_next(request)
+
+    provided = request.headers.get("X-API-Key", "")
+    if provided != expected:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "unauthorized", "message": "Missing or invalid X-API-Key"},
+        )
+
+    return await call_next(request)
+
 
 app.include_router(api_router)
