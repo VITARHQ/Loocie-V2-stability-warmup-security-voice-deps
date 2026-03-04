@@ -10,7 +10,7 @@ from app.config import get_settings
 from app.logging import setup_logging, get_logger
 from app.api.router import api_router
 from app.core.vault import verify_vault
-from app.core.llm import DEFAULT_MODEL  # use current default model for warmup
+from app.core.llm import DEFAULT_MODEL  # warm up whatever your current default model is
 
 settings = get_settings()
 setup_logging(level="DEBUG" if settings.is_dev else "INFO")
@@ -22,7 +22,10 @@ async def warmup_ollama(model: str = DEFAULT_MODEL) -> None:
     Auto-warmup: Send a tiny request to Ollama on startup so the first real user request
     isn't the cold-start hit.
 
-    Uses short timeouts so it never blocks startup.
+    Stability guarantee:
+    - Short connect timeout so it fails fast if Ollama is down.
+    - Read timeout long enough to actually warm the model (helps avoid first-request timeouts).
+    - Always wrapped in try/except so it never prevents API startup.
     """
     ollama_url = "http://localhost:11434/api/chat"
     payload = {
@@ -31,7 +34,8 @@ async def warmup_ollama(model: str = DEFAULT_MODEL) -> None:
         "messages": [{"role": "user", "content": "warm up"}],
     }
 
-    timeout = httpx.Timeout(connect=1.5, read=8.0, write=8.0, pool=8.0)
+    # More forgiving warmup (still safe): connect fast, allow model to spin up a bit
+    timeout = httpx.Timeout(connect=1.5, read=15.0, write=10.0, pool=10.0)
 
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -56,6 +60,7 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("[VAULT] Business Vault verified at %s", status.vault_path)
 
+    # Auto-warmup (does not block startup permanently)
     await warmup_ollama(model=DEFAULT_MODEL)
 
     logger.info("[ENGINE] Startup complete - ready to serve requests")
