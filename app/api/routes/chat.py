@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from app.core.llm import query_llm
+
+from app.core.llm import query_llm, DEFAULT_MODEL
 from app.logger_config import get_logger
 
 router = APIRouter()
@@ -9,7 +10,8 @@ logger = get_logger(__name__)
 
 class ChatRequest(BaseModel):
     message: str
-    model: str = "mistral"
+    # B) Default to the LLM module's DEFAULT_MODEL (phi3:mini)
+    model: str = DEFAULT_MODEL
 
 
 class ChatResponse(BaseModel):
@@ -26,4 +28,3 @@ async def chat(request: ChatRequest) -> ChatResponse:
     except Exception as e:
         logger.exception("[CHAT] query_llm failed")
         return ChatResponse(reply=f"Error: {e}", model=request.model)
-    

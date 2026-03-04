@@ -6,7 +6,10 @@ from app.core.memory import load_memory, save_memory, add_to_memory
 logger = get_logger(__name__)
 
 OLLAMA_URL = "http://localhost:11434/api/chat"
-DEFAULT_MODEL = "mistral"
+
+# B) Faster default model for MacBook Air
+# (You can still override per-request by sending {"model":"..."} to /chat)
+DEFAULT_MODEL = "phi3:mini"
 
 MAX_KNOWLEDGE_CHARS = 8000
 MAX_HISTORY_MESSAGES = 12
