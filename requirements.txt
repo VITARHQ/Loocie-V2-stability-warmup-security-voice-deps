@@ -21,4 +21,6 @@ sounddevice
 openai-whisper
 pyaudio
 requests
-python-dotenv
+
+# Wake word
+openwakeword
