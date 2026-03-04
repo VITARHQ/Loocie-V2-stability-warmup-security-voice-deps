@@ -41,6 +41,13 @@ You are ready to serve SHC at the highest level."""
 
 
 async def query_llm(prompt: str, model: str = DEFAULT_MODEL) -> str:
+    """
+    Queries the local Ollama server. Fix-1 goal: never let /chat hang indefinitely.
+
+    - Use a short connect timeout so we fail fast if Ollama is down.
+    - Use a reasonable read timeout so we don't stall forever on slow model responses.
+    - Return clear error strings that show up in /chat responses and logs.
+    """
     logger.info("[LLM] Sending query to %s", model)
 
     knowledge = load_knowledge_base()
@@ -62,18 +69,40 @@ async def query_llm(prompt: str, model: str = DEFAULT_MODEL) -> str:
         "messages": messages,
     }
 
+    # Fix 1: timeouts to prevent hanging
+    timeout = httpx.Timeout(connect=2.0, read=45.0, write=10.0, pool=10.0)
+
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(OLLAMA_URL, json=payload)
             response.raise_for_status()
-            result = response.json()["message"]["content"].strip()
+
+            data = response.json()
+            result = data["message"]["content"].strip()
+
             history = add_to_memory(history, "assistant", result)
             save_memory(history)
+
             logger.info("[LLM] Response received - length=%d chars", len(result))
             return result
+
     except httpx.ConnectError:
-        logger.error("[LLM] Cannot connect to Ollama - is it running?")
+        logger.error("[LLM] Cannot connect to Ollama at %s - is it running?", OLLAMA_URL)
         return "Error: Loocie brain is offline. Please start Ollama."
+
+    except httpx.ReadTimeout:
+        logger.error("[LLM] Ollama read timed out (model slow/hung).")
+        return "Error: Model timed out. Is Ollama running and is the model loaded?"
+
+    except httpx.TimeoutException:
+        logger.error("[LLM] Ollama request timed out.")
+        return "Error: Model request timed out. Please try again, or check Ollama/model status."
+
+    except httpx.HTTPStatusError as e:
+        # Non-2xx from Ollama (useful when model name is wrong, etc.)
+        logger.error("[LLM] Ollama returned HTTP %s: %s", e.response.status_code, e.response.text)
+        return f"Error: Ollama returned HTTP {e.response.status_code}. Check model name and Ollama logs."
+
     except Exception as e:
         logger.error("[LLM] Unexpected error: %s", str(e))
         return f"Error: {str(e)}"
