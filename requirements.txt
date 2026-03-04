@@ -14,3 +14,11 @@ typing_extensions==4.15.0
 uvicorn==0.41.0
 pydantic-settings==2.13.1
 httpx==0.28.1
+
+# Voice deps
+numpy
+sounddevice
+openai-whisper
+pyaudio
+requests
+python-dotenv
