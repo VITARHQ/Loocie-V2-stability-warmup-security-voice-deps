@@ -3,6 +3,28 @@ import SwiftUI
 import Combine
 
 final class EngineManager: ObservableObject {
+    private static let debugLogPath = "/Volumes/LoocieCoreAI/Logs/loociecoreai-launch.log"
+
+    private static func debugLog(_ message: String) {
+        let line = "[\(Date())] \(message)\n"
+        let url = URL(fileURLWithPath: debugLogPath)
+        let data = Data(line.utf8)
+        if FileManager.default.fileExists(atPath: debugLogPath) {
+            if let handle = try? FileHandle(forWritingTo: url) {
+                try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+                try? handle.close()
+            }
+        } else {
+            try? FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try? data.write(to: url)
+        }
+        print(message)
+    }
+
     static let shared = EngineManager()
 
     @Published var engineOnline: Bool = false
@@ -168,7 +190,7 @@ final class EngineManager: ObservableObject {
                     self.lastError = "Engine process exited (code: \(proc.terminationStatus))"
                 }
             }
-            print("ENGINE TERMINATED code=", proc.terminationStatus)
+            Self.debugLog("ENGINE TERMINATED code= \(proc.terminationStatus)")
         }
 
         process.terminationHandler = { proc in
@@ -177,27 +199,27 @@ final class EngineManager: ObservableObject {
                     self.lastError = "Engine process exited (code: \(proc.terminationStatus))"
                 }
             }
-            print("ENGINE TERMINATED code=", proc.terminationStatus)
+            Self.debugLog("ENGINE TERMINATED code= \(proc.terminationStatus)")
         }
 
         errPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             if !data.isEmpty, let text = String(data: data, encoding: .utf8) {
-                print("ENGINE STDERR:", text)
+                Self.debugLog("ENGINE STDERR: \(text.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
         }
 
         outPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             if !data.isEmpty, let text = String(data: data, encoding: .utf8) {
-                print("ENGINE STDOUT:", text)
+                Self.debugLog("ENGINE STDOUT: \(text.trimmingCharacters(in: .whitespacesAndNewlines))")
             }
         }
 
         do {
-            print("ENGINE LAUNCH executable=", process.executableURL?.path ?? "nil")
-            print("ENGINE LAUNCH cwd=", process.currentDirectoryURL?.path ?? "nil")
-            print("ENGINE LAUNCH args=", process.arguments ?? [])
+            Self.debugLog("ENGINE LAUNCH executable= \(process.executableURL?.path ?? \"nil\")")
+            Self.debugLog("ENGINE LAUNCH cwd= \(process.currentDirectoryURL?.path ?? \"nil\")")
+            Self.debugLog("ENGINE LAUNCH args= \(process.arguments ?? [])")
             try process.run()
             engineProcess = process
             appStartedEngine = true
@@ -205,7 +227,7 @@ final class EngineManager: ObservableObject {
             await MainActor.run {
                 self.lastError = "Failed to start engine: \(error.localizedDescription)"
             }
-            print("ENGINE LAUNCH FAILED:", error.localizedDescription)
+            Self.debugLog("ENGINE LAUNCH FAILED: \(error.localizedDescription)")
             return
         }
 
