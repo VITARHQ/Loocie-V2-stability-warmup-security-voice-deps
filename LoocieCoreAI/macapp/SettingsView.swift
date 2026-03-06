@@ -22,7 +22,14 @@ struct SettingsView: View {
                     Task { await engine.refreshStatus() }
                 }
             }
+
+            Section("Storage") {
+                Text("Base URL is stored locally. API key is stored in Keychain.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
+        .formStyle(.grouped)
         .padding(16)
         .frame(width: 560)
     }
