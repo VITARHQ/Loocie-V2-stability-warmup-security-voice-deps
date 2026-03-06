@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 
 struct ContentView: View {
     @EnvironmentObject var engine: EngineManager
@@ -40,8 +39,8 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                Button("Settings") {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                SettingsLink {
+                    Text("Settings")
                 }
             }
             .padding(.horizontal)
