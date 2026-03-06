@@ -30,12 +30,27 @@ final class EngineManager: ObservableObject {
     private static let baseURLDefaultsKey = "LoocieCoreAI.baseURL"
     private static let apiKeyDefaultsKey = "LoocieCoreAI.apiKey"
 
+    private static func loadAPIKeyFromEngineEnv() -> String? {
+        let path = "/Volumes/LoocieCoreAI/LoocieCoreAI_Core/LoocieAI_V2_Master/LoocieCoreAI/engine/.env"
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+        for line in text.split(whereSeparator: \ .isNewline) {
+            if line.hasPrefix("LOOCIE_INTERNAL_KEY=") {
+                return String(line.split(separator: "=", maxSplits: 1).last ?? "")
+            }
+        }
+        return nil
+    }
+
     private init() {
         let savedBaseURL = UserDefaults.standard.string(forKey: Self.baseURLDefaultsKey)
         self.baseURLString = savedBaseURL?.isEmpty == false ? savedBaseURL! : "http://127.0.0.1:8080"
 
         let savedAPIKey = UserDefaults.standard.string(forKey: Self.apiKeyDefaultsKey)
-        self.apiKey = savedAPIKey ?? ""
+        if let savedAPIKey, !savedAPIKey.isEmpty {
+            self.apiKey = savedAPIKey
+        } else {
+            self.apiKey = Self.loadAPIKeyFromEngineEnv() ?? ""
+        }
 
         Task {
             await ensureEngineRunning()
@@ -125,6 +140,10 @@ final class EngineManager: ObservableObject {
             return
         }
 
+        await MainActor.run {
+            self.lastError = "Launching engine..."
+        }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/Volumes/LoocieCoreAI/BuildCache/_Python/loocie-v2-venv/bin/python")
         process.currentDirectoryURL = URL(fileURLWithPath: "/Volumes/LoocieCoreAI/LoocieCoreAI_Core/LoocieAI_V2_Master/LoocieCoreAI/engine")
@@ -138,6 +157,15 @@ final class EngineManager: ObservableObject {
         let errPipe = Pipe()
         process.standardOutput = outPipe
         process.standardError = errPipe
+
+        process.terminationHandler = { proc in
+            Task { @MainActor in
+                if !self.engineOnline {
+                    self.lastError = "Engine process exited (code: \(proc.terminationStatus))"
+                }
+            }
+            print("ENGINE TERMINATED code=", proc.terminationStatus)
+        }
 
         errPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
