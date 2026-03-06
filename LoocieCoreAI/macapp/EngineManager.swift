@@ -144,6 +144,10 @@ final class EngineManager: ObservableObject {
             self.lastError = "Launching engine..."
         }
 
+        await MainActor.run {
+            self.lastError = "Launching engine..."
+        }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/Volumes/LoocieCoreAI/BuildCache/_Python/loocie-v2-venv/bin/python")
         process.currentDirectoryURL = URL(fileURLWithPath: "/Volumes/LoocieCoreAI/LoocieCoreAI_Core/LoocieAI_V2_Master/LoocieCoreAI/engine")
@@ -157,6 +161,15 @@ final class EngineManager: ObservableObject {
         let errPipe = Pipe()
         process.standardOutput = outPipe
         process.standardError = errPipe
+
+        process.terminationHandler = { proc in
+            Task { @MainActor in
+                if !self.engineOnline {
+                    self.lastError = "Engine process exited (code: \(proc.terminationStatus))"
+                }
+            }
+            print("ENGINE TERMINATED code=", proc.terminationStatus)
+        }
 
         process.terminationHandler = { proc in
             Task { @MainActor in
