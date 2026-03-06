@@ -7,7 +7,7 @@ def _default_app_support_dir() -> Path:
     return Path.home() / "Library" / "Application Support" / "LoocieCoreAI"
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", protected_namespaces=("settings_",))
 
     env: str = "dev"
     engine_name: str = "LoocieCoreAI Core Engine"
