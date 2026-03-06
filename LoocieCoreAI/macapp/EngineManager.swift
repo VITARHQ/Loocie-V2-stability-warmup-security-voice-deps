@@ -150,7 +150,24 @@ final class EngineManager: ObservableObject {
         process.standardOutput = outPipe
         process.standardError = errPipe
 
+        errPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if !data.isEmpty, let text = String(data: data, encoding: .utf8) {
+                print("ENGINE STDERR:", text)
+            }
+        }
+
+        outPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if !data.isEmpty, let text = String(data: data, encoding: .utf8) {
+                print("ENGINE STDOUT:", text)
+            }
+        }
+
         do {
+            print("ENGINE LAUNCH executable=", process.executableURL?.path ?? "nil")
+            print("ENGINE LAUNCH cwd=", process.currentDirectoryURL?.path ?? "nil")
+            print("ENGINE LAUNCH args=", process.arguments ?? [])
             try process.run()
             engineProcess = process
             appStartedEngine = true
@@ -158,6 +175,7 @@ final class EngineManager: ObservableObject {
             await MainActor.run {
                 self.lastError = "Failed to start engine: \(error.localizedDescription)"
             }
+            print("ENGINE LAUNCH FAILED:", error.localizedDescription)
             return
         }
 
