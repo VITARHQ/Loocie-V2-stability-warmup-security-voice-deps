@@ -48,16 +48,30 @@ struct ContentView: View {
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(chatLog.enumerated()), id: \.offset) { _, line in
-                        Text(line)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(Array(chatLog.enumerated()), id: \.offset) { index, line in
+                            Text(line)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .textSelection(.enabled)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+                                .id(index)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
+                }
+                .onChange(of: chatLog.count) { _, _ in
+                    if let last = chatLog.indices.last {
+                        withAnimation {
+                            proxy.scrollTo(last, anchor: .bottom)
+                        }
                     }
                 }
-                .padding(.horizontal)
-                .padding(.top, 8)
             }
 
             Divider()
