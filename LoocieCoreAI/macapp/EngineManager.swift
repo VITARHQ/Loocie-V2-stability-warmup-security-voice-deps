@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import Security
 
 final class EngineManager: ObservableObject {
     private static let debugLogPath = "/Volumes/LoocieCoreAI/Logs/loociecoreai-launch.log"
@@ -39,7 +40,11 @@ final class EngineManager: ObservableObject {
 
     @Published var apiKey: String = "" {
         didSet {
-            UserDefaults.standard.set(apiKey, forKey: Self.apiKeyDefaultsKey)
+            if apiKey.isEmpty {
+                Self.deleteAPIKeyFromKeychain()
+            } else {
+                Self.saveAPIKeyToKeychain(apiKey)
+            }
         }
     }
 
@@ -49,7 +54,8 @@ final class EngineManager: ObservableObject {
     private var appStartedEngine: Bool = false
 
     private static let baseURLDefaultsKey = "LoocieCoreAI.baseURL"
-    private static let apiKeyDefaultsKey = "LoocieCoreAI.apiKey"
+    private static let keychainService = "HIP.LoocieCoreAI"
+    private static let keychainAccount = "engine_api_key"
 
     private static func loadAPIKeyFromEngineEnv() -> String? {
         let path = "/Volumes/LoocieCoreAI/LoocieCoreAI_Core/LoocieAI_V2_Master/LoocieCoreAI/engine/.env"
@@ -62,15 +68,65 @@ final class EngineManager: ObservableObject {
         return nil
     }
 
+    private static func saveAPIKeyToKeychain(_ value: String) {
+        guard let data = value.data(using: .utf8) else { return }
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount
+        ]
+
+        SecItemDelete(query as CFDictionary)
+
+        var addQuery = query
+        addQuery[kSecValueData as String] = data
+        let status = SecItemAdd(addQuery as CFDictionary, nil)
+        debugLog("KEYCHAIN save status= \(status)")
+    }
+
+    private static func loadAPIKeyFromKeychain() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        debugLog("KEYCHAIN load status= \(status)")
+
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let value = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        return value
+    }
+
+    private static func deleteAPIKeyFromKeychain() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        debugLog("KEYCHAIN delete status= \(status)")
+    }
+
     private init() {
         let savedBaseURL = UserDefaults.standard.string(forKey: Self.baseURLDefaultsKey)
         self.baseURLString = savedBaseURL?.isEmpty == false ? savedBaseURL! : "http://127.0.0.1:8080"
 
-        let savedAPIKey = UserDefaults.standard.string(forKey: Self.apiKeyDefaultsKey)
-        if let savedAPIKey, !savedAPIKey.isEmpty {
-            self.apiKey = savedAPIKey
+        if let keychainKey = Self.loadAPIKeyFromKeychain(), !keychainKey.isEmpty {
+            self.apiKey = keychainKey
+        } else if let envKey = Self.loadAPIKeyFromEngineEnv(), !envKey.isEmpty {
+            self.apiKey = envKey
         } else {
-            self.apiKey = Self.loadAPIKeyFromEngineEnv() ?? ""
+            self.apiKey = ""
         }
 
         Task {
